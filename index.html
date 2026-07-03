@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PantryMaster Monthly</title>
   
+  <!-- iOS Home Screen Configuration -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PantryMaster">
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3724/3724788.png">
 
+  <!-- Embedded Web Manifest -->
   <link rel="manifest" href='data:application/manifest+json,{"name":"PantryMaster Monthly","short_name":"Groceries","start_url":".","display":"standalone","background_color":"%23f1f5f9","theme_color":"%2310b981"}'>
 
   <style>
@@ -23,6 +25,8 @@
       --border: #e2e8f0;
       --danger: #ef4444;
       --accent: #3b82f6;
+      --verify: #8b5cf6;
+      --verify-light: #ede9fe;
     }
 
     * {
@@ -202,8 +206,8 @@
       padding: 16px;
       margin-bottom: 12px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      gap: 12px;
       transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -211,6 +215,13 @@
       border-color: var(--primary);
       background: linear-gradient(to right, #ecfdf5, #f0fdf4);
       box-shadow: 0 4px 12px rgba(16, 185, 129, 0.08);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
     }
 
     .product-info { flex: 1; }
@@ -241,7 +252,10 @@
     .card-actions {
       display: flex;
       align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap; /* Allows wrapping on small screens */
       gap: 8px;
+      width: 100%;
     }
 
     .btn-icon {
@@ -262,7 +276,7 @@
       transform: scale(0.9);
     }
 
-    .btn-cart {
+    .btn-verify, .btn-cart {
       padding: 10px 16px;
       border-radius: 12px;
       font-size: 13px;
@@ -272,10 +286,24 @@
       transition: all 0.2s;
     }
 
-    .btn-cart:active {
+    .btn-verify:active, .btn-cart:active {
       transform: scale(0.95);
     }
 
+    /* Verify Button Styles */
+    .btn-verify {
+      background: white;
+      color: var(--text-muted);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-verify.verified {
+      background: var(--verify-light);
+      color: var(--verify);
+      border-color: var(--verify-light);
+    }
+
+    /* Cart Button Styles */
     .btn-cart.add {
       background: var(--primary);
       color: white;
@@ -397,15 +425,17 @@
 </head>
 <body>
 
+  <!-- Toast Element -->
   <div id="toast-container"><span id="toast-icon">✨</span><span id="toast-msg">Notification</span></div>
 
+  <!-- Confirmation Modal -->
   <div class="modal-backdrop" id="confirm-modal">
     <div class="modal-box">
       <h3>Order Completed? 🎉</h3>
-      <p>This will reset the "Added to Cart" status for next month while keeping your master list intact.</p>
+      <p>This will reset the "Added to Cart" and "Verified" statuses for next month while keeping your master list intact.</p>
       <div class="modal-actions">
         <button class="btn-modal btn-cancel" onclick="closeModal()">Cancel</button>
-        <button class="btn-modal btn-confirm" onclick="confirmReset()">Yes, Reset Cart</button>
+        <button class="btn-modal btn-confirm" onclick="confirmReset()">Yes, Reset List</button>
       </div>
     </div>
   </div>
@@ -446,15 +476,16 @@
     <div class="cart-summary">
       Ready: <span id="cart-count">0</span> items
     </div>
-    <button class="btn-place-order" onclick="openOrderModal()">Placed Order ✅</button>
+    <button class="btn-place-order" onclick="openOrderModal()">Placed Order</button>
   </div>
 
   <script>
+    // Note: Added 'isVerified: false' to default items
     let products = JSON.parse(localStorage.getItem('grocery_items')) || [
-      { id: 1, name: "Full Cream Milk", qty: 15, unit: "Lit", inCart: false },
-      { id: 2, name: "Basmati Rice", qty: 10, unit: "Kg", inCart: false },
-      { id: 3, name: "Cooking Oil", qty: 5, unit: "Lit", inCart: false },
-      { id: 4, name: "Wheat Flour (Atta)", qty: 5, unit: "Kg", inCart: false }
+      { id: 1, name: "Full Cream Milk", qty: 15, unit: "Lit", inCart: false, isVerified: false },
+      { id: 2, name: "Basmati Rice", qty: 10, unit: "Kg", inCart: false, isVerified: false },
+      { id: 3, name: "Cooking Oil", qty: 5, unit: "Lit", inCart: false, isVerified: false },
+      { id: 4, name: "Wheat Flour (Atta)", qty: 5, unit: "Kg", inCart: false, isVerified: false }
     ];
 
     let editingId = null;
@@ -502,14 +533,22 @@
         const card = document.createElement('div');
         card.className = `product-card ${p.inCart ? 'in-cart' : ''}`;
         
+        // Ensure older localstorage items have the isVerified property
+        const isVerified = p.isVerified || false;
+        
         card.innerHTML = `
-          <div class="product-info">
-            <div class="product-name">${p.name}</div>
-            <div class="product-qty">${p.qty} ${p.unit}</div>
+          <div class="card-top">
+            <div class="product-info">
+              <div class="product-name">${p.name}</div>
+              <div class="product-qty">${p.qty} ${p.unit}</div>
+            </div>
           </div>
           <div class="card-actions">
             <button class="btn-icon" onclick="editProduct(${p.id})" title="Edit">✏️</button>
             <button class="btn-icon" onclick="deleteProduct(${p.id})" title="Delete">🗑️</button>
+            <button class="btn-verify ${isVerified ? 'verified' : ''}" onclick="toggleVerify(${p.id})">
+              ${isVerified ? 'Verified ✓' : 'Verify'}
+            </button>
             <button class="btn-cart ${p.inCart ? 'added' : 'add'}" onclick="toggleCart(${p.id})">
               ${p.inCart ? 'Added ✓' : 'Add to Cart'}
             </button>
@@ -553,7 +592,8 @@
           name: name,
           qty: qty,
           unit: unit,
-          inCart: false
+          inCart: false,
+          isVerified: false // Initialize new verification state
         });
         showToast("Added to your master list!", "➕");
       }
@@ -570,6 +610,17 @@
         render();
         if (product.inCart) {
           showToast(`${product.name} added to cart`, "🛒");
+        }
+      }
+    }
+
+    function toggleVerify(id) {
+      const product = products.find(p => p.id === id);
+      if (product) {
+        product.isVerified = !product.isVerified;
+        render();
+        if (product.isVerified) {
+          showToast(`Verified in cart!`, "✅");
         }
       }
     }
@@ -610,7 +661,11 @@
     }
 
     function confirmReset() {
-      products.forEach(p => p.inCart = false);
+      // Resets both cart and verified status!
+      products.forEach(p => {
+        p.inCart = false;
+        p.isVerified = false;
+      });
       render();
       closeModal();
       showToast("Order logged! Ready for next month 🎉", "🚀");
